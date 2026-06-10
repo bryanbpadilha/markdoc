@@ -7889,7 +7889,9 @@ var document = {
     "blockquote",
     "comment",
     "list",
-    "hr"
+    "hr",
+    "math_block",
+    "math_inline"
   ],
   attributes: {
     frontmatter: { render: false }
