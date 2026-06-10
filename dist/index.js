@@ -6700,9 +6700,9 @@ var require_lib = __commonJS({
       }
       return this;
     };
-    MarkdownIt3.prototype.use = function(plugin4) {
+    MarkdownIt3.prototype.use = function(plugin5) {
       var args = [this].concat(Array.prototype.slice.call(arguments, 1));
-      plugin4.apply(plugin4, args);
+      plugin5.apply(plugin5, args);
       return this;
     };
     MarkdownIt3.prototype.parse = function(src, env) {
@@ -7729,6 +7729,8 @@ function handleAttrs(token, type) {
     case "text":
     case "code":
     case "comment":
+    case "math_block":
+    case "math_inline":
       return { content: (token.meta || {}).variable || token.content };
     case "fence": {
       const [language] = token.info.split(" ", 1);
@@ -8429,7 +8431,7 @@ function plugin3(md) {
 }
 
 // src/tokenizer/plugins/math.ts
-function customMathPlugin(md) {
+function plugin4(md) {
   md.block.ruler.before("fence", "math_block", (state, start, end, silent) => {
     const startPos = state.bMarks[start] + state.tShift[start];
     if (!state.src.startsWith("$$", startPos)) return false;
@@ -8448,7 +8450,7 @@ function customMathPlugin(md) {
     const formula = state.getLines(start + 1, nextLine, state.tShift[start], false);
     token.block = true;
     token.content = formula;
-    token.attrSet("formula", formula);
+    token.map = [start, nextLine + 1];
     state.line = nextLine + 1;
     return true;
   });
@@ -8469,7 +8471,6 @@ function customMathPlugin(md) {
       const token = state.push("math_inline", "math", 0);
       const formula = state.src.slice(start, match);
       token.content = formula;
-      token.attrSet("formula", formula);
     }
     state.pos = match + 1;
     return true;
@@ -8482,7 +8483,7 @@ var Tokenizer = class {
     this.parser = new import_lib.default(config);
     this.parser.use(plugin, "annotations", {});
     this.parser.use(plugin2, "frontmatter", {});
-    this.parser.use(customMathPlugin);
+    this.parser.use(plugin4);
     this.parser.disable([
       "lheading",
       // Disable indented `code_block` support https://spec.commonmark.org/0.30/#indented-code-block

@@ -1,6 +1,4 @@
-// src/tokenizer/math.ts
-
-export default function customMathPlugin(md: any) {
+export default function plugin(md: any) {
   // 1. Block Math Parser ($$ ... $$)
   md.block.ruler.before('fence', 'math_block', (state: any, start: number, end: number, silent: boolean) => {
     const startPos = state.bMarks[start] + state.tShift[start];
@@ -29,7 +27,8 @@ export default function customMathPlugin(md: any) {
     
     token.block = true;
     token.content = formula;
-    token.attrSet('formula', formula);
+    // Map line placement so Markdoc error logs point to the exact line
+    token.map = [start, nextLine + 1]; 
 
     state.line = nextLine + 1;
     return true;
@@ -64,7 +63,6 @@ export default function customMathPlugin(md: any) {
       const formula = state.src.slice(start, match);
       
       token.content = formula;
-      token.attrSet('formula', formula)
     }
 
     state.pos = match + 1;

@@ -62,6 +62,8 @@ function handleAttrs(token: Token, type: string) {
     case 'text':
     case 'code':
     case 'comment':
+    case 'math_block':
+    case 'math_inline':
       return { content: (token.meta || {}).variable || token.content };
     case 'fence': {
       const [language] = token.info.split(' ', 1);
