@@ -8445,10 +8445,10 @@ function customMathPlugin(md) {
     }
     if (!closed) return false;
     const token = state.push("math_block", "math", 0);
-    const src = state.getLines(start + 1, nextLine, state.tShift[start], false);
+    const formula = state.getLines(start + 1, nextLine, state.tShift[start], false);
     token.block = true;
-    token.content = src;
-    token.attrSet("src", src);
+    token.content = formula;
+    token.attrSet("formula", formula);
     state.line = nextLine + 1;
     return true;
   });
@@ -8467,9 +8467,9 @@ function customMathPlugin(md) {
     if (match === -1) return false;
     if (!silent) {
       const token = state.push("math_inline", "math", 0);
-      const src = state.src.slice(start, match);
-      token.content = src;
-      token.attrSet("src", src);
+      const formula = state.src.slice(start, match);
+      token.content = formula;
+      token.attrSet("formula", formula);
     }
     state.pos = match + 1;
     return true;
