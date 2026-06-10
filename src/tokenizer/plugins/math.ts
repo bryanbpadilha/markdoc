@@ -25,11 +25,11 @@ export default function customMathPlugin(md: any) {
 
     // Push the block token to the AST
     const token = state.push('math_block', 'math', 0);
-    const formula = state.getLines(start + 1, nextLine, state.tShift[start], false);
+    const src = state.getLines(start + 1, nextLine, state.tShift[start], false);
     
     token.block = true;
-    token.content = formula;
-    token.attrSet('content', formula);
+    token.content = src;
+    token.attrSet('src', src);
 
     state.line = nextLine + 1;
     return true;
@@ -61,10 +61,10 @@ export default function customMathPlugin(md: any) {
     if (!silent) {
       // Push the inline token to the AST
       const token = state.push('math_inline', 'math', 0);
-      const formula = state.src.slice(start, match);
+      const src = state.src.slice(start, match);
       
-      token.content = formula;
-      token.attrSet('content', formula)
+      token.content = src;
+      token.attrSet('src', src)
     }
 
     state.pos = match + 1;
