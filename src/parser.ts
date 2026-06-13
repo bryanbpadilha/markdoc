@@ -73,6 +73,15 @@ function handleAttrs(token: Token, type: string) {
       if (token.meta?.hasDisplay) attrs.display = token.content;
       return attrs;
     }
+    case 'cite': {
+      // The id is the positional target; spread the parsed config
+      // map on top so any keys the user wrote (`locator`, `prefix`,
+      // `suffix`, `kind`, etc.) become AST attributes. The id always
+      // wins over a `target` key in config, because the spread goes
+      // first and `target` is set last.
+      const config = (token.meta && token.meta.config) || {};
+      return { ...config, target: token.info };
+    }
     case 'fence': {
       const [language] = token.info.split(' ', 1);
       return language === '' || language === OPEN

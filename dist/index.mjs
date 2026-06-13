@@ -6698,9 +6698,9 @@ var require_lib = __commonJS({
       }
       return this;
     };
-    MarkdownIt3.prototype.use = function(plugin6) {
+    MarkdownIt3.prototype.use = function(plugin7) {
       var args = [this].concat(Array.prototype.slice.call(arguments, 1));
-      plugin6.apply(plugin6, args);
+      plugin7.apply(plugin7, args);
       return this;
     };
     MarkdownIt3.prototype.parse = function(src, env) {
@@ -7708,6 +7708,10 @@ function handleAttrs(token, type) {
       if (token.meta?.hasDisplay) attrs.display = token.content;
       return attrs;
     }
+    case "cite": {
+      const config = token.meta && token.meta.config || {};
+      return { ...config, target: token.info };
+    }
     case "fence": {
       const [language] = token.info.split(" ", 1);
       return language === "" || language === OPEN ? { content: token.content } : { content: token.content, language };
@@ -8034,7 +8038,8 @@ var inline = {
     "hardbreak",
     "softbreak",
     "comment",
-    "wikilink"
+    "wikilink",
+    "cite"
   ]
 };
 var link = {
@@ -8487,6 +8492,168 @@ function plugin5(md) {
   });
 }
 
+// src/tokenizer/plugins/cite.ts
+function plugin6(md) {
+  md.inline.ruler.before("escape", "cite", (state, silent) => {
+    const start = state.pos;
+    if (!state.src.startsWith("[@", start)) return false;
+    const innerStart = start + 2;
+    const closeIdx = findCloseBracket(state.src, innerStart);
+    if (closeIdx === -1) return false;
+    const inner = state.src.slice(innerStart, closeIdx);
+    if (inner.length === 0) return false;
+    const parsed = parseCite(inner);
+    if (parsed === null) return false;
+    if (silent) return true;
+    const token = state.push("cite", "", 0);
+    token.info = parsed.target;
+    token.content = parsed.configRaw;
+    token.meta = {
+      ...token.meta || {},
+      hasConfig: parsed.hasConfig,
+      config: parsed.config
+    };
+    state.pos = closeIdx + 1;
+    return true;
+  });
+}
+function findCloseBracket(src, start) {
+  for (let pos = start; pos < src.length; pos++) {
+    const ch = src[pos];
+    if (ch === "\n") return -1;
+    if (ch === '"' || ch === "'") {
+      const close = findCloseQuote(src, pos);
+      if (close === -1) return -1;
+      pos = close;
+      continue;
+    }
+    if (ch === "]") return pos;
+  }
+  return -1;
+}
+function findCloseQuote(src, start) {
+  const quote = src[start];
+  for (let pos = start + 1; pos < src.length; pos++) {
+    if (src[pos] === quote) return pos;
+  }
+  return -1;
+}
+function findTopLevel(s2, ch) {
+  for (let pos = 0; pos < s2.length; pos++) {
+    const c = s2[pos];
+    if (c === '"' || c === "'") {
+      const close = findCloseQuote(s2, pos);
+      if (close === -1) return -1;
+      pos = close;
+      continue;
+    }
+    if (c === ch) return pos;
+  }
+  return -1;
+}
+function splitTopLevel(s2, sep) {
+  const out = [];
+  let start = 0;
+  for (let pos = 0; pos < s2.length; pos++) {
+    const ch = s2[pos];
+    if (ch === '"' || ch === "'") {
+      const close = findCloseQuote(s2, pos);
+      if (close === -1) {
+        out.push(s2.slice(start));
+        return out;
+      }
+      pos = close;
+      continue;
+    }
+    if (ch === sep) {
+      out.push(s2.slice(start, pos));
+      start = pos + 1;
+    }
+  }
+  out.push(s2.slice(start));
+  return out;
+}
+function unquote(s2) {
+  if (s2.length >= 2) {
+    const first = s2[0];
+    const last = s2[s2.length - 1];
+    if (first === '"' && last === '"' || first === "'" && last === "'") {
+      return s2.slice(1, -1);
+    }
+  }
+  return s2;
+}
+function parseCite(inner) {
+  const split = splitIdFromConfig(inner);
+  if (split === null) return null;
+  const { id, rest, hasConfig } = split;
+  if (id.length === 0) return null;
+  const config = {};
+  let configRaw = "";
+  if (hasConfig) {
+    configRaw = rest.trim();
+    const trimmed = rest.trim();
+    if (trimmed.length > 0) {
+      const parsed = parseConfig(trimmed);
+      if (parsed === null) return null;
+      Object.assign(config, parsed);
+    }
+  }
+  return { target: id, configRaw, hasConfig, config };
+}
+function splitIdFromConfig(inner) {
+  for (let pos = 0; pos < inner.length; pos++) {
+    const ch = inner[pos];
+    if (ch === '"' || ch === "'") {
+      const close = findCloseQuote(inner, pos);
+      if (close === -1) return null;
+      pos = close;
+      continue;
+    }
+    if (ch === ",") {
+      return {
+        id: inner.slice(0, pos).trim(),
+        rest: inner.slice(pos + 1),
+        hasConfig: true
+      };
+    }
+  }
+  return {
+    id: inner.trim(),
+    rest: "",
+    hasConfig: false
+  };
+}
+function parseConfig(config) {
+  const result = {};
+  const entries = splitTopLevel(config, ",");
+  let sawPositional = false;
+  for (const raw of entries) {
+    const entry = raw.trim();
+    if (entry.length === 0) continue;
+    const colonIdx = findTopLevel(entry, ":");
+    if (colonIdx === -1) {
+      if (sawPositional) return null;
+      sawPositional = true;
+      result.locator = unquote(entry);
+      continue;
+    }
+    const key = entry.slice(0, colonIdx).trim();
+    if (key.length === 0) return null;
+    let valuePart = entry.slice(colonIdx + 1);
+    if (valuePart.startsWith(" ")) valuePart = valuePart.slice(1);
+    result[key] = parseScalar(unquote(valuePart.trim()));
+  }
+  return result;
+}
+function parseScalar(value) {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (value === "null" || value === "~") return null;
+  if (value !== "" && /^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  return value;
+}
+
 // src/tokenizer/index.ts
 var Tokenizer = class {
   constructor(config = {}) {
@@ -8495,6 +8662,7 @@ var Tokenizer = class {
     this.parser.use(plugin2, "frontmatter", {});
     this.parser.use(plugin4);
     this.parser.use(plugin5);
+    this.parser.use(plugin6);
     this.parser.disable([
       "lheading",
       // Disable indented `code_block` support https://spec.commonmark.org/0.30/#indented-code-block

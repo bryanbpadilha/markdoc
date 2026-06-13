@@ -204,6 +204,7 @@ export const inline: Schema = {
     'softbreak',
     'comment',
     'wikilink',
+    'cite',
   ],
 };
 

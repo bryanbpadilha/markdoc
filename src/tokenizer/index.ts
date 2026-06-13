@@ -4,6 +4,7 @@ import frontmatter from './plugins/frontmatter';
 import comments from './plugins/comments';
 import math from './plugins/math';
 import wikilink from './plugins/wikilink';
+import cite from './plugins/cite';
 import type Token from 'markdown-it/lib/token';
 
 export default class Tokenizer {
@@ -20,6 +21,7 @@ export default class Tokenizer {
     this.parser.use(frontmatter, 'frontmatter', {});
     this.parser.use(math);
     this.parser.use(wikilink);
+    this.parser.use(cite);
     this.parser.disable([
       'lheading',
       // Disable indented `code_block` support https://spec.commonmark.org/0.30/#indented-code-block
