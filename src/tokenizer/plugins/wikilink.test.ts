@@ -29,61 +29,91 @@ describe('MarkdownIt custom wikilink plugin', function () {
     return out;
   }
 
-  it('parses a basic wikilink with display and target', function () {
+  it('parses a bare wikilink with no display (target only)', function () {
     const example = parse(`
-    See [[Display Text]](my-entry) for more.
+    See [[my-entry]] for more.
     `);
 
     const wikilink = findWikilink(example);
     expect(wikilink).toBeDefined();
     expect(wikilink.type).toEqual('wikilink');
-    expect(wikilink.content).toEqual('Display Text');
     expect(wikilink.info).toEqual('my-entry');
+    // No `|...` portion was written — `content` is empty and the
+    // `hasDisplay` flag is absent, so consumers should fall back to
+    // a derived label.
+    expect(wikilink.content).toEqual('');
+    expect(wikilink.meta?.hasDisplay).toBeFalsy();
   });
 
-  it('allows an empty display (per the spec "Optional Display Text")', function () {
+  it('parses a wikilink with an explicit display text', function () {
     const example = parse(`
-    See [[]](my-entry) for more.
+    See [[my-entry|Display Text]] for more.
     `);
 
     const wikilink = findWikilink(example);
     expect(wikilink).toBeDefined();
-    expect(wikilink.content).toEqual('');
     expect(wikilink.info).toEqual('my-entry');
+    expect(wikilink.content).toEqual('Display Text');
+    expect(wikilink.meta?.hasDisplay).toBe(true);
+  });
+
+  it('honors an explicit empty display literally', function () {
+    const example = parse(`
+    See [[my-entry|]] for more.
+    `);
+
+    const wikilink = findWikilink(example);
+    expect(wikilink).toBeDefined();
+    expect(wikilink.info).toEqual('my-entry');
+    expect(wikilink.content).toEqual('');
+    // `hasDisplay` is true because the user wrote `|`, even though the
+    // display is empty. This is the signal that lets consumers avoid
+    // falling back to a derived label.
+    expect(wikilink.meta?.hasDisplay).toBe(true);
   });
 
   it('captures slashes inside the target identifier', function () {
     const example = parse(`
-    See [[Path]](path/to/entry) for more.
+    See [[path/to/entry]] for more.
     `);
 
     const wikilink = findWikilink(example);
     expect(wikilink).toBeDefined();
-    expect(wikilink.content).toEqual('Path');
     expect(wikilink.info).toEqual('path/to/entry');
+  });
+
+  it('treats the first | as the separator, leaving later | chars in the display', function () {
+    const example = parse(`
+    See [[target|a|b|c]] here.
+    `);
+
+    const wikilink = findWikilink(example);
+    expect(wikilink).toBeDefined();
+    expect(wikilink.info).toEqual('target');
+    expect(wikilink.content).toEqual('a|b|c');
   });
 
   it('parses multiple wikilinks in the same paragraph', function () {
     const example = parse(`
-    See [[A]](entry-a) and [[B]](entry-b) together.
+    See [[entry-a]] and [[entry-b|Label B]] together.
     `);
 
     const wikilinks = collectWikilinks(example);
     expect(wikilinks.length).toEqual(2);
-    expect(wikilinks[0].content).toEqual('A');
     expect(wikilinks[0].info).toEqual('entry-a');
-    expect(wikilinks[1].content).toEqual('B');
+    expect(wikilinks[0].meta?.hasDisplay).toBeFalsy();
     expect(wikilinks[1].info).toEqual('entry-b');
+    expect(wikilinks[1].content).toEqual('Label B');
+    expect(wikilinks[1].meta?.hasDisplay).toBe(true);
   });
 
-  it('falls back to text when the target parentheses are missing', function () {
+  it('falls back to text when the inner is empty ([[]])', function () {
     const example = parse(`
-    Not a [[link]] here.
+    Empty [[]] here.
     `);
 
     expect(findWikilink(example)).toBeUndefined();
 
-    // The original `[[link]]` should still appear as raw text.
     const textTokens: string[] = [];
     function collectText(toks: any[]) {
       for (const t of toks) {
@@ -92,12 +122,12 @@ describe('MarkdownIt custom wikilink plugin', function () {
       }
     }
     collectText(example);
-    expect(textTokens.join('')).toContain('[[link]]');
+    expect(textTokens.join('')).toContain('[[]]');
   });
 
-  it('falls back to text when the target paren is unclosed', function () {
+  it('falls back to text when the target is empty ([[|display]])', function () {
     const example = parse(`
-    Broken [[Display]](my-entry
+    See [[|orphan]] here.
     `);
 
     expect(findWikilink(example)).toBeUndefined();
@@ -105,13 +135,13 @@ describe('MarkdownIt custom wikilink plugin', function () {
 
   it('falls back to text when the closing ]] is missing', function () {
     const example = parse(`
-    Incomplete [[Display](my-entry)
+    Incomplete [[my-entry here.
     `);
 
     expect(findWikilink(example)).toBeUndefined();
   });
 
-  it('does not match a single [ link', function () {
+  it('does not match a regular markdown link', function () {
     const example = parse(`
     Just [a link](https://example.com) here.
     `);
@@ -137,26 +167,38 @@ describe('Wikilink Markdoc AST node', function () {
     return undefined;
   }
 
-  it('exposes display and target as node attributes', function () {
+  it('exposes only target when no display is given', function () {
     const ast = parseAst(`
-    See [[Display Text]](my-entry) for more.
+    See [[my-entry]] for more.
     `);
 
     const node = findWikilinkNode(ast);
     expect(node).toBeDefined();
     expect(node.type).toEqual('wikilink');
-    expect(node.attributes.display).toEqual('Display Text');
     expect(node.attributes.target).toEqual('my-entry');
+    // No `display` attribute on the AST node — consumers should fall back.
+    expect('display' in node.attributes).toBe(false);
   });
 
-  it('preserves empty display', function () {
+  it('exposes both target and display when given', function () {
     const ast = parseAst(`
-    See [[]](my-entry).
+    See [[my-entry|Display Text]] for more.
     `);
 
     const node = findWikilinkNode(ast);
     expect(node).toBeDefined();
-    expect(node.attributes.display).toEqual('');
     expect(node.attributes.target).toEqual('my-entry');
+    expect(node.attributes.display).toEqual('Display Text');
+  });
+
+  it('exposes empty display as an empty string when explicit', function () {
+    const ast = parseAst(`
+    See [[my-entry|]] for more.
+    `);
+
+    const node = findWikilinkNode(ast);
+    expect(node).toBeDefined();
+    expect(node.attributes.target).toEqual('my-entry');
+    expect(node.attributes.display).toEqual('');
   });
 });

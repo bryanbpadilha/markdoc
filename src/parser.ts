@@ -65,8 +65,14 @@ function handleAttrs(token: Token, type: string) {
     case 'math_block':
     case 'math_inline':
       return { content: (token.meta || {}).variable || token.content };
-    case 'wikilink':
-      return { display: token.content, target: token.info };
+    case 'wikilink': {
+      // Only include `display` when the user wrote a `|...` portion.
+      // A bare `[[target]]` produces a node with no `display` attribute
+      // so consumers can fall back (e.g. to a looked-up entry title).
+      const attrs: { target: string; display?: string } = { target: token.info };
+      if (token.meta?.hasDisplay) attrs.display = token.content;
+      return attrs;
+    }
     case 'fence': {
       const [language] = token.info.split(' ', 1);
       return language === '' || language === OPEN
