@@ -82,6 +82,15 @@ function handleAttrs(token: Token, type: string) {
       const config = (token.meta && token.meta.config) || {};
       return { ...config, target: token.info };
     }
+    case 'cite_def': {
+      // Block-level definition form. The id is the identifier
+      // (stored on `token.info`); the content is the raw inline
+      // markdown slice, which the consumer-side component is
+      // expected to re-parse with `Markdoc.parse(content)` so any
+      // inline tokens (e.g. `[[wikilinks]]`) are handled by the
+      // same pipeline as the rest of the page.
+      return { target: token.info, content: token.content };
+    }
     case 'fence': {
       const [language] = token.info.split(' ', 1);
       return language === '' || language === OPEN

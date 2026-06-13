@@ -16,6 +16,7 @@ export const document: Schema = {
     'hr',
     'math_block',
     'math_inline',
+    'cite_def',
   ],
   attributes: {
     frontmatter: { render: false },
