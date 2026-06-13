@@ -6700,9 +6700,9 @@ var require_lib = __commonJS({
       }
       return this;
     };
-    MarkdownIt3.prototype.use = function(plugin5) {
+    MarkdownIt3.prototype.use = function(plugin6) {
       var args = [this].concat(Array.prototype.slice.call(arguments, 1));
-      plugin5.apply(plugin5, args);
+      plugin6.apply(plugin6, args);
       return this;
     };
     MarkdownIt3.prototype.parse = function(src, env) {
@@ -7732,6 +7732,11 @@ function handleAttrs(token, type) {
     case "math_block":
     case "math_inline":
       return { content: (token.meta || {}).variable || token.content };
+    case "wikilink": {
+      const attrs = { target: token.info };
+      if (token.meta?.hasDisplay) attrs.display = token.content;
+      return attrs;
+    }
     case "fence": {
       const [language] = token.info.split(" ", 1);
       return language === "" || language === OPEN ? { content: token.content } : { content: token.content, language };
@@ -8057,7 +8062,8 @@ var inline = {
     "image",
     "hardbreak",
     "softbreak",
-    "comment"
+    "comment",
+    "wikilink"
   ]
 };
 var link = {
@@ -8479,6 +8485,37 @@ function plugin4(md) {
   });
 }
 
+// src/tokenizer/plugins/wikilink.ts
+function plugin5(md) {
+  md.inline.ruler.before("escape", "wikilink", (state, silent) => {
+    const start = state.pos;
+    if (!state.src.startsWith("[[", start)) return false;
+    const closeIdx = state.src.indexOf("]]", start + 2);
+    if (closeIdx === -1) return false;
+    const inner = state.src.slice(start + 2, closeIdx);
+    if (inner.length === 0) return false;
+    if (silent) return true;
+    const pipeIdx = inner.indexOf("|");
+    let target;
+    let display;
+    if (pipeIdx === -1) {
+      target = inner;
+    } else {
+      target = inner.slice(0, pipeIdx);
+      display = inner.slice(pipeIdx + 1);
+    }
+    if (target.length === 0) return false;
+    const token = state.push("wikilink", "", 0);
+    token.info = target;
+    token.content = display ?? "";
+    if (display !== void 0) {
+      token.meta = { ...token.meta || {}, hasDisplay: true };
+    }
+    state.pos = closeIdx + 2;
+    return true;
+  });
+}
+
 // src/tokenizer/index.ts
 var Tokenizer = class {
   constructor(config = {}) {
@@ -8486,6 +8523,7 @@ var Tokenizer = class {
     this.parser.use(plugin, "annotations", {});
     this.parser.use(plugin2, "frontmatter", {});
     this.parser.use(plugin4);
+    this.parser.use(plugin5);
     this.parser.disable([
       "lheading",
       // Disable indented `code_block` support https://spec.commonmark.org/0.30/#indented-code-block
