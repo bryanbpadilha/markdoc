@@ -203,6 +203,7 @@ export const inline: Schema = {
     'hardbreak',
     'softbreak',
     'comment',
+    'wikilink',
   ],
 };
 

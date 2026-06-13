@@ -65,6 +65,8 @@ function handleAttrs(token: Token, type: string) {
     case 'math_block':
     case 'math_inline':
       return { content: (token.meta || {}).variable || token.content };
+    case 'wikilink':
+      return { display: token.content, target: token.info };
     case 'fence': {
       const [language] = token.info.split(' ', 1);
       return language === '' || language === OPEN
